@@ -24,9 +24,12 @@ jobs:
       - name: Build
         run: msbuild src/gInk.csproj /p:Configuration=Release /p:Platform="Any CPU" /p:OutputPath=..\bin-built\
 
-      - name: Copy lang and runtime files
+      - name: Copy lang, default configs and runtime files
         run: |
           if (Test-Path bin/lang) { Copy-Item -Recurse -Force bin/lang bin-built/lang }
+          if (Test-Path bin/config.ini) { Copy-Item -Force bin/config.ini bin-built/ }
+          if (Test-Path bin/hotkeys.ini) { Copy-Item -Force bin/hotkeys.ini bin-built/ }
+          if (Test-Path bin/pens.ini) { Copy-Item -Force bin/pens.ini bin-built/ }
           if (Test-Path src/Microsoft.Ink.dll) { Copy-Item -Force src/Microsoft.Ink.dll bin-built/ }
 
       - name: Upload artifact
