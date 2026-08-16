@@ -37,6 +37,8 @@ namespace gInk
         private bool haveScrollPos = false;
         private int pendingScrollDelta = 0;
         private int lastHookScrollTime = -10000;
+        private bool usingHook = false;
+        private int lastTestMoved = 0;
         private System.Windows.Forms.Timer scrollApplyTimer;
 
         // http://www.csharp411.com/hide-form-from-alttab/
@@ -149,6 +151,7 @@ namespace gInk
                     pendingScrollDelta -= delta;
                     lastScrollPos = pos;
                     lastHookScrollTime = Environment.TickCount;
+                    usingHook = true;
                 }
             }
             else
@@ -156,6 +159,9 @@ namespace gInk
                 lastScrollHwnd = hwnd;
                 lastScrollPos = pos;
                 haveScrollPos = true;
+                // Switched to a different window: stop trusting the hook for fallback
+                // suppression until it proves itself again on this window.
+                usingHook = false;
             }
         }
 
@@ -615,21 +621,29 @@ namespace gInk
 
             if (Root.AutoScroll && Root.PointerMode)
             {
-                // If the WinEvent hook recently produced a real scroll delta, trust it
-                // (precise) and skip the pixel-diff Test() to avoid double-moving.
-                // Otherwise fall back to the pixel-diff Test() (for windows without a
-                // standard scrollbar, e.g. browsers).
-                bool hookActive = (Environment.TickCount - lastHookScrollTime) < 300;
-                if (!hookActive)
+                // If the WinEvent hook is actively tracking this window's scrollbar,
+                // trust it (precise, no accumulation error) and skip the pixel-diff
+                // Test() entirely to avoid polluting the offset. Otherwise fall back
+                // to the pixel-diff Test() (windows without a standard scrollbar).
+                if (!usingHook)
                 {
                     int moved = Test();
-                    if (moved != 0)
+                    // Debounce: only apply when the same direction is detected on two
+                    // consecutive frames, so a single noisy frame (animation, caret,
+                    // repaint) cannot leave a permanent offset that breaks "return to
+                    // origin".
+                    if (moved != 0 && moved == lastTestMoved)
                     {
                         MoveStrokes(moved);
                         ClearCanvus();
                         DrawStrokes();
                         DrawButtons(false);
                         UpdateFormDisplay(true);
+                        lastTestMoved = 0;
+                    }
+                    else
+                    {
+                        lastTestMoved = moved;
                     }
                 }
             }
