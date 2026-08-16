@@ -29,6 +29,15 @@ namespace gInk
         private byte[] screenbits;
         private byte[] lastscreenbits;
 
+        // AutoScroll: real scroll detection via WinEvent hook (fallback to pixel diff).
+        private WinApi.WinEventDelegate scrollHookDelegate;
+        private IntPtr scrollHook = IntPtr.Zero;
+        private IntPtr lastScrollHwnd = IntPtr.Zero;
+        private int lastScrollPos = 0;
+        private bool haveScrollPos = false;
+        private int pendingScrollDelta = 0;
+        private System.Windows.Forms.Timer scrollApplyTimer;
+
         // http://www.csharp411.com/hide-form-from-alttab/
         protected override CreateParams CreateParams
         {
@@ -84,6 +93,94 @@ namespace gInk
             SemiTransparentBrush = new SolidBrush(Color.FromArgb(120, 255, 255, 255));
 
             ToTopMostThrough();
+
+            if (Root.AutoScroll)
+            {
+                scrollHookDelegate = new WinApi.WinEventDelegate(OnScrollWinEvent);
+                // Listen for scrollable content position changes in any process.
+                scrollHook = WinApi.SetWinEventHook(
+                    WinApi.EVENT_OBJECT_LOCATIONCHANGE,
+                    WinApi.EVENT_OBJECT_LOCATIONCHANGE,
+                    IntPtr.Zero,
+                    scrollHookDelegate,
+                    0,
+                    0,
+                    WinApi.WINEVENT_OUTOFCONTEXT | WinApi.WINEVENT_SKIPOWNPROCESS);
+
+                // Timer that applies detected scroll deltas to the ink.
+                scrollApplyTimer = new System.Windows.Forms.Timer();
+                scrollApplyTimer.Interval = 30;
+                scrollApplyTimer.Tick += scrollApplyTimer_Tick;
+                scrollApplyTimer.Enabled = true;
+            }
+        }
+
+        private int GetVScrollPos(IntPtr hwnd)
+        {
+            WinApi.SCROLLINFO si = new WinApi.SCROLLINFO();
+            si.cbSize = (uint)System.Runtime.InteropServices.Marshal.SizeOf(si);
+            si.fMask = WinApi.SIF_POS;
+            if (WinApi.GetScrollInfo(hwnd, WinApi.SB_VERT, ref si))
+                return si.nPos;
+            return 0;
+        }
+
+        private void OnScrollWinEvent(IntPtr hWinEventHook, uint eventType, IntPtr hwnd, int idObject, int idChild, uint dwEventThread, uint dwmsEventTime)
+        {
+            if (!Root.AutoScroll || !Root.PointerMode)
+                return;
+
+            // Only care about the foreground window and its descendants.
+            IntPtr fg = WinApi.GetForegroundWindow();
+            if (fg == IntPtr.Zero)
+                return;
+            if (hwnd != fg && !IsDescendant(fg, hwnd))
+                return;
+
+            int pos = GetVScrollPos(hwnd);
+            // If this window reports a usable scrollbar, track its position.
+            if (haveScrollPos && lastScrollHwnd == hwnd)
+            {
+                int delta = pos - lastScrollPos;
+                if (delta != 0)
+                {
+                    // Scrolling down (content moves up) -> ink should move up (negative).
+                    pendingScrollDelta -= delta;
+                    lastScrollPos = pos;
+                }
+            }
+            else
+            {
+                lastScrollHwnd = hwnd;
+                lastScrollPos = pos;
+                haveScrollPos = true;
+            }
+        }
+
+        private bool IsDescendant(IntPtr ancestor, IntPtr node)
+        {
+            IntPtr p = node;
+            while (p != IntPtr.Zero)
+            {
+                if (p == ancestor)
+                    return true;
+                p = WinApi.GetParent(p);
+            }
+            return false;
+        }
+
+        private void scrollApplyTimer_Tick(object sender, EventArgs e)
+        {
+            if (pendingScrollDelta != 0)
+            {
+                int dy = pendingScrollDelta;
+                pendingScrollDelta = 0;
+                MoveStrokes(dy);
+                ClearCanvus();
+                DrawStrokes();
+                DrawButtons(false);
+                UpdateFormDisplay(true);
+            }
         }
 
         public void ToTopMostThrough()
@@ -228,28 +325,9 @@ namespace gInk
             Root.FormCollection.IC.Renderer.PixelToInkSpace(gCanvus, ref pt2);
             float unitperpixel = (pt2.Y - pt1.Y) / 100.0f;
             float shouldmove = dy * unitperpixel;
-
-            // Track total scroll so we can clamp strokes to roughly one screen
-            // outside the visible area. This prevents ink from being lost forever
-            // when the page scrolls a long way and then back.
-            scrollAccum += dy;
-            if (scrollAccum > Height * 1.5f) scrollAccum = Height * 1.5f;
-            if (scrollAccum < -Height * 1.5f) scrollAccum = -Height * 1.5f;
-            float allowed = scrollAccum * unitperpixel;
-
             foreach (Stroke stroke in Root.FormCollection.IC.Ink.Strokes)
-            {
-                if (stroke.Deleted)
-                    continue;
-                // Clamp so a stroke never moves further than ~1.5 screens away.
-                float curY = stroke.GetBoundingBox().Top;
-                float nextY = curY + shouldmove;
-                if (allowed >= 0 && nextY > Height * 1.5f)
-                    shouldmove = Height * 1.5f - curY;
-                else if (allowed < 0 && nextY < -Height * 1.5f)
-                    shouldmove = -Height * 1.5f - curY;
-                stroke.Move(0, shouldmove);
-            }
+                if (!stroke.Deleted)
+                    stroke.Move(0, shouldmove);
         }
 
         protected override void OnPaint(PaintEventArgs e)
@@ -438,7 +516,6 @@ namespace gInk
 
         private int stackmove = 0;
         private int Tick = 0;
-        private float scrollAccum = 0;
 
         private void timer1_Tick(object sender, EventArgs e)
         {
@@ -536,15 +613,21 @@ namespace gInk
 
             if (Root.AutoScroll && Root.PointerMode)
             {
-                int moved = Test();
-
-                if (moved != 0)
+                // Prefer the precise WinEvent-based scroll detection (pendingScrollDelta
+                // is applied by scrollApplyTimer). Only fall back to the pixel-diff
+                // Test() when the foreground window has no standard scrollbar.
+                bool fgHasScrollbar = haveScrollPos && IsDescendant(WinApi.GetForegroundWindow(), lastScrollHwnd);
+                if (!fgHasScrollbar)
                 {
-                    MoveStrokes(moved);
-                    ClearCanvus();
-                    DrawStrokes();
-                    DrawButtons(false);
-                    UpdateFormDisplay(true);
+                    int moved = Test();
+                    if (moved != 0)
+                    {
+                        MoveStrokes(moved);
+                        ClearCanvus();
+                        DrawStrokes();
+                        DrawButtons(false);
+                        UpdateFormDisplay(true);
+                    }
                 }
             }
         }
@@ -555,6 +638,16 @@ namespace gInk
             WinApi.DeleteDC(canvusDc);
             if (Root.AutoScroll)
             {
+                if (scrollHook != IntPtr.Zero)
+                {
+                    WinApi.UnhookWinEvent(scrollHook);
+                    scrollHook = IntPtr.Zero;
+                }
+                if (scrollApplyTimer != null)
+                {
+                    scrollApplyTimer.Enabled = false;
+                    scrollApplyTimer.Dispose();
+                }
                 WinApi.DeleteObject(hScreenBitmap);
                 WinApi.DeleteDC(memscreenDc);
             }
