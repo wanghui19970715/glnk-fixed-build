@@ -31,6 +31,17 @@ namespace gInk
         {
             Root.UnsetHotkey();
 
+            cbAutoScroll = new CheckBox();
+            cbAutoScroll.AutoSize = true;
+            cbAutoScroll.Location = new System.Drawing.Point(14, 320);
+            cbAutoScroll.Name = "cbAutoScroll";
+            cbAutoScroll.Size = new System.Drawing.Size(400, 19);
+            cbAutoScroll.Text = "自动滚动时让标注跟随页面 (AutoScroll)";
+            cbAutoScroll.UseVisualStyleBackColor = true;
+            cbAutoScroll.Checked = Root.AutoScroll;
+            cbAutoScroll.CheckedChanged += cbAutoScroll_CheckedChanged;
+            tabPage1.Controls.Add(cbAutoScroll);
+
             if (Root.EraserEnabled)
                 cbEraserEnabled.Checked = true;
             if (Root.PointerEnabled)
@@ -136,17 +147,6 @@ namespace gInk
             }
 
             cbAllowHotkeyInPointer.Top = (int)(Height * 0.18);
-
-            cbAutoScroll = new CheckBox();
-            cbAutoScroll.AutoSize = true;
-            cbAutoScroll.Location = new System.Drawing.Point(14, 320);
-            cbAutoScroll.Name = "cbAutoScroll";
-            cbAutoScroll.Size = new System.Drawing.Size(400, 19);
-            cbAutoScroll.Text = "自动滚动时让标注跟随页面 (AutoScroll)";
-            cbAutoScroll.UseVisualStyleBackColor = true;
-            cbAutoScroll.Checked = Root.AutoScroll;
-            cbAutoScroll.CheckedChanged += cbAutoScroll_CheckedChanged;
-            tabPage1.Controls.Add(cbAutoScroll);
 
             for (int p = 0; p < Root.MaxPenCount; p++)
             {
