@@ -19,6 +19,8 @@ namespace gInk
         private Label[] lbHotkeyPens = new Label[10];
         private HotkeyInputBox[] hiPens = new HotkeyInputBox[10];
 
+        private CheckBox cbAutoScroll;
+
         public FormOptions(Root root)
         {
             Root = root;
@@ -52,6 +54,8 @@ namespace gInk
                 cbAllowDragging.Checked = true;
             if (Root.AllowHotkeyInPointerMode)
                 cbAllowHotkeyInPointer.Checked = true;
+            if (Root.AutoScroll)
+                cbAutoScroll.Checked = true;
 
             //comboCanvasCursor.SelectedIndex = Root.CanvasCursor;
 
@@ -132,6 +136,17 @@ namespace gInk
             }
 
             cbAllowHotkeyInPointer.Top = (int)(Height * 0.18);
+
+            cbAutoScroll = new CheckBox();
+            cbAutoScroll.AutoSize = true;
+            cbAutoScroll.Location = new System.Drawing.Point(14, 320);
+            cbAutoScroll.Name = "cbAutoScroll";
+            cbAutoScroll.Size = new System.Drawing.Size(400, 19);
+            cbAutoScroll.Text = "自动滚动时让标注跟随页面 (AutoScroll)";
+            cbAutoScroll.UseVisualStyleBackColor = true;
+            cbAutoScroll.Checked = Root.AutoScroll;
+            cbAutoScroll.CheckedChanged += cbAutoScroll_CheckedChanged;
+            tabPage1.Controls.Add(cbAutoScroll);
 
             for (int p = 0; p < Root.MaxPenCount; p++)
             {
@@ -395,6 +410,11 @@ namespace gInk
         private void cbAllowHotkeyInPointer_CheckedChanged(object sender, EventArgs e)
         {
             Root.AllowHotkeyInPointerMode = cbAllowHotkeyInPointer.Checked;
+        }
+
+        private void cbAutoScroll_CheckedChanged(object sender, EventArgs e)
+        {
+            Root.AutoScroll = cbAutoScroll.Checked;
         }
 
         private void hi_OnHotkeyChanged(object sender, EventArgs e)

@@ -678,6 +678,13 @@ namespace gInk
                             if (float.TryParse(sPara, out tempf))
                                 ToolbarHeight = tempf;
                             break;
+
+                        case "AUTOSCROLL":
+                            if (sPara.ToUpper() == "TRUE" || sPara == "1" || sPara.ToUpper() == "ON")
+                                AutoScroll = true;
+                            else
+                                AutoScroll = false;
+                            break;
                     }
                 }
             }
@@ -909,6 +916,13 @@ namespace gInk
 
                         case "TOOLBAR_HEIGHT":
                             sPara = ToolbarHeight.ToString();
+                            break;
+
+                        case "AUTOSCROLL":
+                            if (AutoScroll)
+                                sPara = "True";
+                            else
+                                sPara = "False";
                             break;
                     }
                 }
