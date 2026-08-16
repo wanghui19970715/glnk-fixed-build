@@ -36,9 +36,7 @@ namespace gInk
         private int lastScrollPos = 0;
         private bool haveScrollPos = false;
         private int pendingScrollDelta = 0;
-        private int lastHookScrollTime = -10000;
         private bool usingHook = false;
-        private int lastTestMoved = 0;
         private System.Windows.Forms.Timer scrollApplyTimer;
 
         // http://www.csharp411.com/hide-form-from-alttab/
@@ -150,7 +148,6 @@ namespace gInk
                     // Scrolling down (content moves up) -> ink should move up (negative).
                     pendingScrollDelta -= delta;
                     lastScrollPos = pos;
-                    lastHookScrollTime = Environment.TickCount;
                     usingHook = true;
                 }
             }
@@ -628,22 +625,16 @@ namespace gInk
                 if (!usingHook)
                 {
                     int moved = Test();
-                    // Debounce: only apply when the same direction is detected on two
-                    // consecutive frames, so a single noisy frame (animation, caret,
-                    // repaint) cannot leave a permanent offset that breaks "return to
-                    // origin".
-                    if (moved != 0 && moved == lastTestMoved)
+                    // Apply detected scroll directly so tracking stays responsive.
+                    // Ignore tiny single-frame jitter (caret/animation repaint) that
+                    // would otherwise accumulate into a "won't return to origin" drift.
+                    if (Math.Abs(moved) >= 3)
                     {
                         MoveStrokes(moved);
                         ClearCanvus();
                         DrawStrokes();
                         DrawButtons(false);
                         UpdateFormDisplay(true);
-                        lastTestMoved = 0;
-                    }
-                    else
-                    {
-                        lastTestMoved = moved;
                     }
                 }
             }
