@@ -24,6 +24,11 @@ jobs:
       - name: Build
         run: msbuild src/gInk.csproj /p:Configuration=Release /p:Platform="Any CPU" /p:OutputPath=..\bin-built\
 
+      - name: Copy lang and runtime files
+        run: |
+          if (Test-Path bin/lang) { Copy-Item -Recurse -Force bin/lang bin-built/lang }
+          if (Test-Path src/Microsoft.Ink.dll) { Copy-Item -Force src/Microsoft.Ink.dll bin-built/ }
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
