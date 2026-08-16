@@ -352,7 +352,10 @@ namespace gInk
             // 25% CPU with 1x10x10 sample rate?
             int istart = Width / 2 - Width / 4;
             int iend = Width / 2 + Width / 4;
-            for (dj = -Height * 3 / 8 + 1; dj < Height * 3 / 8 - 1; dj++)
+            // Search a much wider range so fast scrolls (large per-frame shift) are still detected.
+            int djstart = -(int)(Height * 0.9) + 1;
+            int djend = (int)(Height * 0.9) - 1;
+            for (dj = djstart; dj < djend; dj++)
             {
                 int idpixels = 0;
                 for (int j = Height / 2 - Height / 8; j < Height / 2 + Height / 8; j += 10)
@@ -511,16 +514,14 @@ namespace gInk
             if (Root.AutoScroll && Root.PointerMode)
             {
                 int moved = Test();
-                stackmove += moved;
 
-                if (stackmove != 0 && Tick % 10 == 1)
+                if (moved != 0)
                 {
-                    MoveStrokes(stackmove);
+                    MoveStrokes(moved);
                     ClearCanvus();
                     DrawStrokes();
                     DrawButtons(false);
                     UpdateFormDisplay(true);
-                    stackmove = 0;
                 }
             }
         }
