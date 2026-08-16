@@ -19,13 +19,13 @@ jobs:
         uses: nuget/setup-nuget@v2
 
       - name: Restore packages
-        run: nuget restore glnk-fixed-master/src/gInk.csproj
+        run: nuget restore src/gInk.csproj
 
       - name: Build
-        run: msbuild glnk-fixed-master/src/gInk.csproj /p:Configuration=Release /p:Platform="Any CPU" /p:OutputPath=..\..\bin-built\
+        run: msbuild src/gInk.csproj /p:Configuration=Release /p:Platform="Any CPU" /p:OutputPath=..\bin-built\
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: gInk
-          path: glnk-fixed-master/bin-built/
+          path: bin-built/
