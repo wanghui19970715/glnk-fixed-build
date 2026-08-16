@@ -228,9 +228,28 @@ namespace gInk
             Root.FormCollection.IC.Renderer.PixelToInkSpace(gCanvus, ref pt2);
             float unitperpixel = (pt2.Y - pt1.Y) / 100.0f;
             float shouldmove = dy * unitperpixel;
+
+            // Track total scroll so we can clamp strokes to roughly one screen
+            // outside the visible area. This prevents ink from being lost forever
+            // when the page scrolls a long way and then back.
+            scrollAccum += dy;
+            if (scrollAccum > Height * 1.5f) scrollAccum = Height * 1.5f;
+            if (scrollAccum < -Height * 1.5f) scrollAccum = -Height * 1.5f;
+            float allowed = scrollAccum * unitperpixel;
+
             foreach (Stroke stroke in Root.FormCollection.IC.Ink.Strokes)
-                if (!stroke.Deleted)
-                    stroke.Move(0, shouldmove);
+            {
+                if (stroke.Deleted)
+                    continue;
+                // Clamp so a stroke never moves further than ~1.5 screens away.
+                float curY = stroke.GetBoundingBox().Top;
+                float nextY = curY + shouldmove;
+                if (allowed >= 0 && nextY > Height * 1.5f)
+                    shouldmove = Height * 1.5f - curY;
+                else if (allowed < 0 && nextY < -Height * 1.5f)
+                    shouldmove = -Height * 1.5f - curY;
+                stroke.Move(0, shouldmove);
+            }
         }
 
         protected override void OnPaint(PaintEventArgs e)
@@ -419,6 +438,7 @@ namespace gInk
 
         private int stackmove = 0;
         private int Tick = 0;
+        private float scrollAccum = 0;
 
         private void timer1_Tick(object sender, EventArgs e)
         {
