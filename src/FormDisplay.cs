@@ -36,6 +36,7 @@ namespace gInk
         private int lastScrollPos = 0;
         private bool haveScrollPos = false;
         private int pendingScrollDelta = 0;
+        private int lastHookScrollTime = -10000;
         private System.Windows.Forms.Timer scrollApplyTimer;
 
         // http://www.csharp411.com/hide-form-from-alttab/
@@ -147,6 +148,7 @@ namespace gInk
                     // Scrolling down (content moves up) -> ink should move up (negative).
                     pendingScrollDelta -= delta;
                     lastScrollPos = pos;
+                    lastHookScrollTime = Environment.TickCount;
                 }
             }
             else
@@ -613,11 +615,12 @@ namespace gInk
 
             if (Root.AutoScroll && Root.PointerMode)
             {
-                // Prefer the precise WinEvent-based scroll detection (pendingScrollDelta
-                // is applied by scrollApplyTimer). Only fall back to the pixel-diff
-                // Test() when the foreground window has no standard scrollbar.
-                bool fgHasScrollbar = haveScrollPos && IsDescendant(WinApi.GetForegroundWindow(), lastScrollHwnd);
-                if (!fgHasScrollbar)
+                // If the WinEvent hook recently produced a real scroll delta, trust it
+                // (precise) and skip the pixel-diff Test() to avoid double-moving.
+                // Otherwise fall back to the pixel-diff Test() (for windows without a
+                // standard scrollbar, e.g. browsers).
+                bool hookActive = (Environment.TickCount - lastHookScrollTime) < 300;
+                if (!hookActive)
                 {
                     int moved = Test();
                     if (moved != 0)
