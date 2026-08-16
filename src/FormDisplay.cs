@@ -352,17 +352,20 @@ namespace gInk
             // 25% CPU with 1x10x10 sample rate?
             int istart = Width / 2 - Width / 4;
             int iend = Width / 2 + Width / 4;
-            // Search a much wider range so fast scrolls (large per-frame shift) are still detected.
-            int djstart = -(int)(Height * 0.9) + 1;
-            int djend = (int)(Height * 0.9) - 1;
+            // Search a wider range so fast scrolls (large per-frame shift) are still detected.
+            int djstart = -(int)(Height * 0.75) + 1;
+            int djend = (int)(Height * 0.75) - 1;
             for (dj = djstart; dj < djend; dj++)
             {
                 int idpixels = 0;
                 for (int j = Height / 2 - Height / 8; j < Height / 2 + Height / 8; j += 10)
                 {
+                    int j2 = j + dj;
+                    if (j2 < 0 || j2 >= Height)
+                        continue;
                     L(istart - 10, j);
                     N1(istart - 10, j);
-                    N2(istart - 10, j + dj);
+                    N2(istart - 10, j2);
                     for (int i = istart; i < iend; i += 10)
                     {
                         if (Lnext() == Nnext2())
